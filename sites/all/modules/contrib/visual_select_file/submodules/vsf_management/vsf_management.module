@@ -1,0 +1,182 @@
+<?php
+
+/**
+ * Implements hook_module_implements_alter().
+ *
+ * @param array $implementations
+ * @param string $hook
+ */
+function vsf_management_module_implements_alter(&$implementations, $hook) {
+  // Move our 'entity_info_alter' immediately after Entity API's.
+  if ($hook == 'entity_info_alter') {
+    $override = array();
+    foreach ($implementations as $module => $group) {
+      if ($module != 'vsf_management') {
+        $override[$module] = $group;
+      }
+      if ($module == 'entity') {
+        $override['vsf_management'] = FALSE;
+      }
+    }
+    $implementations = $override;
+  }
+}
+
+/**
+ * Implements hook_menu_local_tasks_alter().
+ *
+ * @param array $data
+ * @param array $router_item
+ * @param string $root_path
+ */
+function vsf_management_menu_local_tasks_alter(&$data, $router_item, $root_path) {
+  if (module_exists('vsf_upload')) {
+    // Add action link to 'file/add' on 'admin/content/files' page.
+    if ($root_path == 'admin/content/files') {
+      $item = menu_get_item('file/add');
+      if ($item['access']) {
+        $data['actions']['output'][] = [
+          '#theme' => 'menu_local_action',
+          '#link' => $item,
+        ];
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ *
+ * @param array $info
+ */
+function vsf_management_entity_info_alter(&$info) {
+  if (isset($info['file']['access callback']) && $info['file']['access callback'] === 'entity_metadata_file_access') {
+    $info['file']['access callback'] = 'vsf_management_file_access';
+  }
+}
+
+/**
+ * Entity access callback for 'file'.
+ *
+ * @param string $op
+ * @param null|object $file
+ * @param null|object $account
+ * @param string $entity_type
+ *
+ * @return bool
+ */
+function vsf_management_file_access($op, $file = NULL, $account = NULL, $entity_type) {
+  switch ($op) {
+    // Let Entity API handle complex view access.
+    case 'view':
+      return entity_metadata_file_access($op, $file, $account, $entity_type);
+
+    case 'create':
+      // If VSF upload is enabled, respect that permission.
+      if (module_exists('vsf_upload')) {
+        return user_access('upload vsf files', $account);
+      }
+      return TRUE;
+
+    case 'delete':
+    case 'update':
+      // Administer all files permission.
+      if (user_access('administer all files', $account)) {
+        return TRUE;
+      }
+
+      // Administer all files permission per scheme.
+      $scheme = file_uri_scheme($file->uri);
+      $permission = 'administer ' . $scheme . ' files';
+      // Permission for operation.
+      if (user_access($permission, $account)) {
+        return TRUE;
+      }
+
+      // Permission for operation.
+      $permission = $op . ' ' . $scheme . ' files';
+      if (user_access($permission, $account)) {
+        return TRUE;
+      }
+
+      return FALSE;
+  }
+
+  return FALSE;
+}
+
+/**
+ * Implements hook_permission().
+ *
+ * @return array
+ */
+function vsf_management_permission() {
+  $permissions = array();
+  $permissions['administer all files'] = array(
+    'title' => t('Administer all files'),
+    'restrict access' => TRUE,
+  );
+
+  $permissions['administer public files'] = array(
+    'title' => t('Administer Public files'),
+  );
+  $permissions['update public files'] = array(
+    'title' => t('Update Public files'),
+  );
+  $permissions['delete public files'] = array(
+    'title' => t('Delete Public files'),
+  );
+
+  $permissions['administer private files'] = array(
+    'title' => t('Administer Private files'),
+  );
+  $permissions['update private files'] = array(
+    'title' => t('Update Private files'),
+  );
+  $permissions['delete private files'] = array(
+    'title' => t('Delete Private files'),
+  );
+
+  return $permissions;
+}
+
+/**
+ * Implements hook_admin_paths().
+ *
+ * @return array
+ */
+function vsf_management_admin_paths() {
+  return array(
+    'node/*/files' => TRUE,
+  );
+}
+
+/**
+ * Implements hook_image_default_styles().
+ *
+ * @return array
+ */
+function vsf_management_image_default_styles() {
+  return array(
+    'vsf_management_thumbnail' => array(
+      'label' => 'VSF Management Thumbnail',
+      'effects' => array(
+        array(
+          'name' => 'image_scale_and_crop',
+          'data' => array(
+            'width' => 50,
+            'height' => 50,
+          ),
+          'weight' => 0,
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function vsf_management_views_api() {
+  return array('api' => 3);
+}

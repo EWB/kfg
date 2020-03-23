@@ -1,0 +1,14 @@
+name = Visual Select File + Manual Crop
+description = Manual Crop support for Visual Select File selection.
+core = 7.x
+
+package = Image
+
+dependencies[] = manualcrop
+dependencies[] = vsf_wysiwyg
+
+; Information added by Drupal.org packaging script on 2019-02-01
+version = "7.x-1.12"
+core = "7.x"
+project = "visual_select_file"
+datestamp = "1549014191"
